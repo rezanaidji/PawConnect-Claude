@@ -1,5 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
-import HomePage from "../pages/HomePage.tsx";
+import LandingPage from "../pages/LandingPage";
 import SignInPage from "../pages/auth/SignInPage.tsx";
 import SignUpPage from "../pages/auth/SignUpPage.tsx";
 import ProtectedPage from "../pages/ProtectedPage.tsx";
@@ -16,7 +16,7 @@ const router = createBrowserRouter([
       // Public routes
       {
         path: "/",
-        element: <HomePage />,
+        element: <LandingPage />,
       },
       {
         path: "/auth/sign-in",

@@ -1,121 +1,117 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Inter", sans-serif !important;
-}
-body {
-  background-color: #1c1c1c; /* Darker background, closer to Supabase style */
-  color: white;
-}
-main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 10vh;
-}
-a {
-  text-decoration: none;
-}
-.header-text {
-  display: flex;
-  gap: 0.5em;
-  align-items: center;
-  padding: 0.5em 1em;
-  font-weight: bold;
-  background: none;
-  text-align: center;
-}
-.main-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background-color: #2a2a2a; /* Slightly lighter than body, but still dark */
-  padding: 2em 2em;
-  width: 100%;
-  max-width: 500px;
-  border-radius: 4px; /* Slightly rounded corners */
-  box-shadow: 0 0 60px rgba(0, 0, 0, 0.2);
-  border-top: 5px;
-  border-width: 10px 0px 0px 0px;
-  border-style: solid;
-  border-color: #3ecf8e; /* Supabase green */
-}
-#github-repo-link {
-  display: flex;
-  gap: 0.5em;
-  margin-top: 0;
-  align-items: center;
-  padding: 0.5em 1em;
-  font-weight: bold;
-  background: none;
-  cursor: pointer;
-  color: #3ecf8e; /* Supabase green */
-}
-#github-repo-link:hover {
-  background-color: rgba(
-    62,
-    207,
-    142,
-    0.1
-  ); /* Supabase green with low opacity */
-}
-input {
-  padding: 1rem;
-  border-radius: 4px;
-  outline: none;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
-  background-color: #3a3a3a; /* Slightly lighter than container background */
-  border: 1px solid #4a4a4a;
-  font-size: 1rem;
-  color: white;
-  margin-top: 7px;
-  width: 300px;
-}
-button,
-a {
-  font-size: 16px;
-  padding: 1em;
-  background: none;
-  cursor: pointer;
-  color: white;
-  background: #229f65; /* Supabase green */
-  border: none;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-  width: 300px;
-  text-align: center;
-  margin-top: 1em;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 40px;
-  font-weight: bold;
-  border: 1px solid #33b379; /* Supabase green */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-sans antialiased;
+  }
+
+  h1, h2, h3 {
+    @apply font-serif;
+  }
 }
 
-a {
-  border: none;
+@layer components {
+  .gradient-primary {
+    @apply bg-gradient-to-br from-primary to-secondary;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  }
+
+  .btn-primary-gradient {
+    @apply bg-gradient-to-r from-primary to-secondary text-white font-semibold
+           py-3 px-8 rounded-full shadow-lg hover:shadow-xl
+           transform hover:scale-105 transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2;
+  }
+
+  .btn-secondary-outline {
+    @apply bg-transparent border-2 border-primary text-primary font-semibold
+           py-3 px-8 rounded-full hover:bg-primary hover:text-white
+           transform hover:scale-105 transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+
+  .section-padding {
+    @apply py-16 md:py-24 lg:py-32;
+  }
+
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .stat-card {
+    @apply bg-base-100 rounded-2xl p-6 shadow-lg text-center;
+  }
+
+  .feature-card {
+    @apply bg-base-100 rounded-2xl p-8 shadow-lg card-hover;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-lg border border-neutral-300
+           focus:border-primary focus:ring-2 focus:ring-primary/20
+           transition-all duration-200 bg-base-100;
+  }
+
+  .halo-blue {
+    @apply relative;
+  }
+
+  .halo-blue::after {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-secondary/30 blur-xl -z-10;
+  }
+
+  .halo-amber {
+    @apply relative;
+  }
+
+  .halo-amber::after {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-warning/30 blur-xl -z-10;
+  }
 }
-button:hover,
-a:hover {
-  background: #2ebd80; /* Slightly darker Supabase green for hover */
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-600 {
+    animation-delay: 600ms;
+  }
 }
-.home-link {
-  margin-bottom: 1em;
-}
-.auth-link {
-  background: transparent;
-  color: #3ecf8e; /* Supabase green */
-}
-.auth-link:hover {
-  background: transparent;
-  text-decoration: underline;
-}
-#divider {
-  width: 70%;
-  height: 2px;
-  background-color: #3ecf8e; /* Supabase green */
-  margin: 1em 0;
-  border-radius: 100%;
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
