@@ -11,6 +11,7 @@ import UserDashboard from "../pages/dashboard/UserDashboard.tsx";
 import AdminDashboard from "../pages/dashboard/AdminDashboard.tsx";
 import SuperAdminDashboard from "../pages/dashboard/SuperAdminDashboard.tsx";
 import ProfileSettingsPage from "../pages/settings/ProfileSettingsPage.tsx";
+import MyDogsPage from "../pages/settings/MyDogsPage.tsx";
 import Providers from "../Providers.tsx";
 
 const router = createBrowserRouter([
@@ -54,6 +55,10 @@ const router = createBrowserRouter([
           {
             path: "/settings/profile",
             element: <ProfileSettingsPage />,
+          },
+          {
+            path: "/settings/my-dogs",
+            element: <MyDogsPage />,
           },
         ],
       },

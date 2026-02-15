@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useSession } from "../../context/SessionContext";
 import supabase from "../../supabase";
 import { Container } from "../../components/common/Container";
-import { Button } from "../../components/common/Button";
+import DashboardLayout from "../../components/layout/DashboardLayout";
 
 interface Profile {
   id: string;
@@ -13,7 +12,6 @@ interface Profile {
 }
 
 const AdminDashboard = () => {
-  const { session, role } = useSession();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,41 +34,12 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
-    <main className="min-h-screen bg-base-200">
-      <nav className="bg-base-100 shadow-sm border-b border-base-300">
-        <Container className="flex items-center justify-between py-4">
-          <Link to="/" className="text-xl font-bold gradient-text">
-            PawConnect AI
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link to="/settings/profile">
-              <Button variant="ghost" size="sm">Settings</Button>
-            </Link>
-            <span className="text-sm text-base-content/70">{session?.user.email}</span>
-            <span className="px-2 py-1 text-xs font-medium rounded-full bg-warning/10 text-warning capitalize">
-              {role?.replace("_", " ")}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              Sign Out
-            </Button>
-          </div>
-        </Container>
-      </nav>
-
+    <DashboardLayout>
       <Container className="py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-            <p className="text-base-content/60">Manage and view all users.</p>
-          </div>
-          <Link to="/dashboard">
-            <Button variant="outline" size="sm">User Dashboard</Button>
-          </Link>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">User Management</h1>
+          <p className="text-base-content/60">View all registered users.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -136,7 +105,7 @@ const AdminDashboard = () => {
           )}
         </div>
       </Container>
-    </main>
+    </DashboardLayout>
   );
 };
 

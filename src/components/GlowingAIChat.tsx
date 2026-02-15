@@ -4,6 +4,11 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Loader2, Bot, Mic, Paperclip } from "lucide-react";
 import { cn } from "../lib/utils";
+import {
+  sendChatMessage,
+  loadChatHistory,
+  uploadDocumentToKnowledgeBase,
+} from "../lib/chatService";
 
 interface Message {
   text: string;
@@ -53,8 +58,10 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,33 +71,49 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const simulateAIResponse = (userMessage: string) => {
+  // Load chat history on mount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const history = await loadChatHistory();
+        if (cancelled || history.length === 0) return;
+        setMessages([
+          {
+            text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
+            isUser: false,
+            timestamp: new Date(0),
+          },
+          ...history.map((m) => ({
+            text: m.text,
+            isUser: m.isUser,
+            timestamp: m.timestamp,
+          })),
+        ]);
+      } catch {
+        // User not logged in — skip history loading
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleAIResponse = async (userMessage: string) => {
     setIsTyping(true);
-
-    let response = "I'm here to help! What would you like to know?";
-
-    if (
-      userMessage.toLowerCase().includes("hello") ||
-      userMessage.toLowerCase().includes("hi")
-    ) {
-      response = "Hello! Great to see you! How can I assist you today?";
-    } else if (userMessage.toLowerCase().includes("help")) {
-      response =
-        "I'm your AI assistant, ready to help with any questions or tasks you have!";
-    } else if (userMessage.toLowerCase().includes("thank")) {
-      response = "You're very welcome! Feel free to ask me anything else.";
-    } else if (userMessage.toLowerCase().includes("who are you")) {
-      response =
-        "I'm an advanced AI assistant powered by cutting-edge technology, here to make your life easier!";
-    }
-
-    setTimeout(() => {
-      setIsTyping(false);
+    try {
+      const answer = await sendChatMessage(userMessage);
       setMessages((prev) => [
         ...prev,
-        { text: response, isUser: false, timestamp: new Date() },
+        { text: answer, isUser: false, timestamp: new Date() },
       ]);
-    }, 2000);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { text: `Error: ${err.message || "Something went wrong."}`, isUser: false, timestamp: new Date() },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleSend = () => {
@@ -107,7 +130,35 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
       textareaRef.current.style.height = "auto";
     }
 
-    simulateAIResponse(userMessage);
+    handleAIResponse(userMessage);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setIsUploading(true);
+    setMessages((prev) => [
+      ...prev,
+      { text: `Uploading "${file.name}" to knowledge base...`, isUser: true, timestamp: new Date() },
+    ]);
+
+    try {
+      const text = await file.text();
+      await uploadDocumentToKnowledgeBase(file.name, text);
+      setMessages((prev) => [
+        ...prev,
+        { text: `"${file.name}" has been added to the knowledge base. You can now ask questions about it!`, isUser: false, timestamp: new Date() },
+      ]);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { text: `Failed to upload: ${err.message}`, isUser: false, timestamp: new Date() },
+      ]);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -286,13 +337,22 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
           {/* Input Area */}
           <div className="relative border-t border-white/10 p-4 bg-black/20 backdrop-blur-xl">
             <div className="flex items-end gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.csv,.json"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
               <div className="flex gap-2">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors disabled:opacity-50"
                 >
-                  <Paperclip className="w-4 h-4" />
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.05 }}

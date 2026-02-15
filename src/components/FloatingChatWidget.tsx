@@ -1,7 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Loader2, Bot, X } from "lucide-react";
+import { Send, Sparkles, Loader2, Bot, X, Mic, Paperclip } from "lucide-react";
 import { cn } from "../lib/utils";
+import {
+  sendChatMessage,
+  loadChatHistory,
+  uploadDocumentToKnowledgeBase,
+} from "../lib/chatService";
 
 interface Message {
   text: string;
@@ -47,8 +52,11 @@ export default function FloatingChatWidget() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,29 +68,53 @@ export default function FloatingChatWidget() {
     }
   }, [isOpen]);
 
-  const simulateAIResponse = (userMessage: string) => {
+  // Load chat history when widget opens for the first time
+  useEffect(() => {
+    if (!isOpen || historyLoaded) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const history = await loadChatHistory();
+        if (cancelled) return;
+        if (history.length === 0) { setHistoryLoaded(true); return; }
+        setMessages([
+          {
+            text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
+            isUser: false,
+            timestamp: new Date(0),
+          },
+          ...history.map((m) => ({
+            text: m.text,
+            isUser: m.isUser,
+            timestamp: m.timestamp,
+          })),
+        ]);
+        setHistoryLoaded(true);
+      } catch {
+        // User not logged in — skip history loading
+        setHistoryLoaded(true);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [isOpen, historyLoaded]);
+
+  const handleAIResponse = async (userMessage: string) => {
     setIsTyping(true);
-
-    let response = "I'm here to help! What would you like to know?";
-    const msg = userMessage.toLowerCase();
-
-    if (msg.includes("hello") || msg.includes("hi")) {
-      response = "Hello! Great to see you! How can I assist you today?";
-    } else if (msg.includes("help")) {
-      response = "I'm your AI assistant, ready to help with any questions or tasks you have!";
-    } else if (msg.includes("thank")) {
-      response = "You're very welcome! Feel free to ask me anything else.";
-    } else if (msg.includes("who are you")) {
-      response = "I'm an advanced AI assistant powered by cutting-edge technology, here to make your life easier!";
-    }
-
-    setTimeout(() => {
-      setIsTyping(false);
+    try {
+      const answer = await sendChatMessage(userMessage);
       setMessages((prev) => [
         ...prev,
-        { text: response, isUser: false, timestamp: new Date() },
+        { text: answer, isUser: false, timestamp: new Date() },
       ]);
-    }, 2000);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { text: `Error: ${err.message || "Something went wrong."}`, isUser: false, timestamp: new Date() },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleSend = () => {
@@ -94,13 +126,41 @@ export default function FloatingChatWidget() {
       { text: userMessage, isUser: true, timestamp: new Date() },
     ]);
     setInput("");
-    simulateAIResponse(userMessage);
+    handleAIResponse(userMessage);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setIsUploading(true);
+    setMessages((prev) => [
+      ...prev,
+      { text: `Uploading "${file.name}"...`, isUser: true, timestamp: new Date() },
+    ]);
+
+    try {
+      const text = await file.text();
+      await uploadDocumentToKnowledgeBase(file.name, text);
+      setMessages((prev) => [
+        ...prev,
+        { text: `"${file.name}" added to knowledge base! Ask me about it.`, isUser: false, timestamp: new Date() },
+      ]);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { text: `Upload failed: ${err.message}`, isUser: false, timestamp: new Date() },
+      ]);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -191,7 +251,30 @@ export default function FloatingChatWidget() {
 
             {/* Input */}
             <div className="border-t border-white/10 p-3 bg-black/20">
-              <div className="flex items-center gap-2">
+              <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.csv,.json"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <div className="flex items-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors"
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                </motion.button>
                 <input
                   ref={inputRef}
                   type="text"

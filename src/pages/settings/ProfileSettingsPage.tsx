@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "../../context/SessionContext";
 import supabase from "../../supabase";
-import { Container } from "../../components/common/Container";
 import { Button } from "../../components/common/Button";
+import DashboardLayout from "../../components/layout/DashboardLayout";
+import { ImagePlus, X } from "lucide-react";
 
 interface ProfileForm {
   display_name: string;
@@ -11,9 +11,6 @@ interface ProfileForm {
   avatar_url: string;
   phone_number: string;
   location: string;
-  dog_name: string;
-  dog_breed: string;
-  years_as_owner: number;
 }
 
 const initialForm: ProfileForm = {
@@ -22,18 +19,17 @@ const initialForm: ProfileForm = {
   avatar_url: "",
   phone_number: "",
   location: "",
-  dog_name: "",
-  dog_breed: "",
-  years_as_owner: 0,
 };
 
 const ProfileSettingsPage = () => {
-  const { session, role } = useSession();
+  const { session } = useSession();
   const [form, setForm] = useState<ProfileForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -41,7 +37,6 @@ const ProfileSettingsPage = () => {
     }
   }, [session?.user?.id]);
 
-  // Auto-dismiss toast after 4 seconds
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 4000);
@@ -51,7 +46,7 @@ const ProfileSettingsPage = () => {
   const fetchProfile = async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("display_name, bio, avatar_url, phone_number, location, dog_name, dog_breed, years_as_owner")
+      .select("display_name, bio, avatar_url, phone_number, location")
       .eq("id", session!.user.id)
       .single();
 
@@ -64,9 +59,6 @@ const ProfileSettingsPage = () => {
         avatar_url: data.avatar_url || "",
         phone_number: data.phone_number || "",
         location: data.location || "",
-        dog_name: data.dog_name || "",
-        dog_breed: data.dog_breed || "",
-        years_as_owner: data.years_as_owner ?? 0,
       });
     }
     setLoading(false);
@@ -76,7 +68,7 @@ const ProfileSettingsPage = () => {
     const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: name === "years_as_owner" ? parseInt(value) || 0 : value,
+      [name]: value,
     }));
     if (errors[name]) {
       setErrors((prev) => {
@@ -85,6 +77,72 @@ const ProfileSettingsPage = () => {
         return next;
       });
     }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      setToast({ type: "error", message: "Please upload a JPG, PNG, WebP, or GIF image." });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ type: "error", message: "Image must be less than 5MB." });
+      return;
+    }
+
+    setUploading(true);
+    const userId = session!.user.id;
+    const ext = file.name.split(".").pop();
+    const filePath = `${userId}/avatar.${ext}`;
+
+    // Upload to Supabase Storage (upsert to overwrite previous)
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      setToast({ type: "error", message: "Upload failed: " + uploadError.message });
+      setUploading(false);
+      return;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+    const publicUrl = urlData.publicUrl + "?t=" + Date.now(); // cache-bust
+
+    // Save to profile
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", userId);
+
+    if (updateError) {
+      setToast({ type: "error", message: "Failed to save avatar: " + updateError.message });
+    } else {
+      setForm((prev) => ({ ...prev, avatar_url: publicUrl }));
+      setToast({ type: "success", message: "Profile photo updated!" });
+    }
+    setUploading(false);
+  };
+
+  const handleRemoveAvatar = async () => {
+    const userId = session!.user.id;
+
+    // List and delete all files in the user's avatar folder
+    const { data: files } = await supabase.storage.from("avatars").list(userId);
+    if (files && files.length > 0) {
+      await supabase.storage
+        .from("avatars")
+        .remove(files.map((f) => `${userId}/${f.name}`));
+    }
+
+    // Clear avatar_url in profile
+    await supabase.from("profiles").update({ avatar_url: "" }).eq("id", userId);
+    setForm((prev) => ({ ...prev, avatar_url: "" }));
+    setToast({ type: "success", message: "Profile photo removed." });
   };
 
   const validate = (): boolean => {
@@ -109,9 +167,6 @@ const ProfileSettingsPage = () => {
         avatar_url: form.avatar_url,
         phone_number: form.phone_number,
         location: form.location,
-        dog_name: form.dog_name,
-        dog_breed: form.dog_breed,
-        years_as_owner: form.years_as_owner,
       })
       .eq("id", session!.user.id);
 
@@ -124,45 +179,27 @@ const ProfileSettingsPage = () => {
     setSaving(false);
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const dashboardPath =
-    role === "super_admin" ? "/super-admin/dashboard" :
-    role === "admin" ? "/admin/dashboard" : "/dashboard";
+  const initials = form.display_name
+    ? form.display_name
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : session?.user.email?.charAt(0).toUpperCase() || "?";
 
   return (
-    <main className="min-h-screen bg-base-200">
-      {/* Nav */}
-      <nav className="bg-base-100 shadow-sm border-b border-base-300">
-        <Container className="flex items-center justify-between py-4">
-          <Link to="/" className="text-xl font-bold gradient-text">
-            PawConnect AI
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link to={dashboardPath}>
-              <Button variant="ghost" size="sm">Dashboard</Button>
-            </Link>
-            <span className="text-sm text-base-content/70">{session?.user.email}</span>
-            <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary capitalize">
-              {role?.replace("_", " ")}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              Sign Out
-            </Button>
-          </div>
-        </Container>
-      </nav>
-
+    <DashboardLayout>
       {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-2">
-          <div className={`px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${
-            toast.type === "success"
-              ? "bg-success text-success-content"
-              : "bg-error text-error-content"
-          }`}>
+        <div className="fixed top-6 right-6 z-50">
+          <div
+            className={`px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${
+              toast.type === "success"
+                ? "bg-success text-success-content"
+                : "bg-error text-error-content"
+            }`}
+          >
             {toast.type === "success" ? (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -177,152 +214,180 @@ const ProfileSettingsPage = () => {
         </div>
       )}
 
-      {/* Content */}
-      <Container size="md" className="py-10">
-        <h1 className="text-3xl font-bold mb-2">Profile Settings</h1>
-        <p className="text-base-content/60 mb-8">Update your personal information and dog details.</p>
-
+      <div className="min-h-screen flex items-start justify-center py-10 px-4">
         {loading ? (
           <div className="flex justify-center py-16">
             <span className="loading loading-spinner loading-lg" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Personal Information */}
-            <div className="bg-base-100 rounded-2xl shadow-lg p-6 md:p-8">
-              <h2 className="text-xl font-bold mb-6">Personal Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Display Name
-                  </label>
-                  <input
-                    name="display_name"
-                    value={form.display_name}
-                    onChange={handleChange}
-                    placeholder="John Doe"
-                    className="input-field"
+          <div className="w-full max-w-lg bg-base-100 rounded-xl border border-base-300 shadow-lg shadow-black/5 overflow-hidden">
+            {/* Header with title */}
+            <div className="border-b border-base-300 px-6 py-4">
+              <h1 className="text-base font-semibold leading-none tracking-tight">
+                Edit profile
+              </h1>
+            </div>
+
+            {/* Profile banner */}
+            <div
+              className="h-32 relative"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(168,85,247,0.7) 0%, rgba(59,130,246,0.7) 50%, rgba(16,185,129,0.6) 100%)",
+              }}
+            />
+
+            {/* Avatar */}
+            <div className="-mt-12 px-6">
+              <div className="relative inline-flex size-24 items-center justify-center overflow-hidden rounded-full border-4 border-base-100 bg-base-200 shadow-sm shadow-black/10">
+                {form.avatar_url ? (
+                  <img
+                    src={form.avatar_url}
+                    className="h-full w-full object-cover"
+                    alt="Profile"
                   />
+                ) : (
+                  <span className="text-2xl font-bold text-base-content/60">
+                    {initials}
+                  </span>
+                )}
+
+                {/* Upload overlay button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/40 transition-colors group cursor-pointer"
+                  aria-label="Change profile picture"
+                >
+                  <ImagePlus
+                    size={20}
+                    className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </button>
+
+                {/* Loading spinner during upload */}
+                {uploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <span className="loading loading-spinner loading-sm text-white" />
+                  </div>
+                )}
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                />
+              </div>
+
+              {/* Remove button */}
+              {form.avatar_url && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  className="ml-3 inline-flex items-center gap-1 text-xs text-error/70 hover:text-error transition-colors"
+                >
+                  <X size={14} /> Remove photo
+                </button>
+              )}
+            </div>
+
+            {/* Form body */}
+            <form onSubmit={handleSubmit}>
+              <div className="px-6 py-6 space-y-4">
+                {/* Display Name */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="display_name" className="text-sm font-medium">
+                      Name
+                    </label>
+                    <input
+                      id="display_name"
+                      name="display_name"
+                      value={form.display_name}
+                      onChange={handleChange}
+                      placeholder="John Doe"
+                      className="h-10 w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm placeholder:text-base-content/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="phone_number" className="text-sm font-medium">
+                      Phone <span className="text-error">*</span>
+                    </label>
+                    <input
+                      id="phone_number"
+                      name="phone_number"
+                      value={form.phone_number}
+                      onChange={handleChange}
+                      placeholder="+1 (555) 123-4567"
+                      className={`h-10 w-full rounded-lg border bg-base-100 px-3 py-2 text-sm placeholder:text-base-content/40 focus:outline-none focus:ring-2 transition ${
+                        errors.phone_number
+                          ? "border-error focus:ring-error/30 focus:border-error"
+                          : "border-base-300 focus:ring-primary/30 focus:border-primary"
+                      }`}
+                    />
+                    {errors.phone_number && (
+                      <p className="text-error text-xs mt-1">{errors.phone_number}</p>
+                    )}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Phone Number <span className="text-error">*</span>
+                {/* Location */}
+                <div className="space-y-1.5">
+                  <label htmlFor="location" className="text-sm font-medium">
+                    Location
                   </label>
                   <input
-                    name="phone_number"
-                    value={form.phone_number}
-                    onChange={handleChange}
-                    placeholder="+1 (555) 123-4567"
-                    className={`input-field ${errors.phone_number ? "border-error focus:border-error focus:ring-error/20" : ""}`}
-                  />
-                  {errors.phone_number && (
-                    <p className="text-error text-sm mt-1">{errors.phone_number}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Location / City
-                  </label>
-                  <input
+                    id="location"
                     name="location"
                     value={form.location}
                     onChange={handleChange}
                     placeholder="Miami, FL"
-                    className="input-field"
+                    className="h-10 w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm placeholder:text-base-content/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Avatar URL
-                  </label>
-                  <input
-                    name="avatar_url"
-                    value={form.avatar_url}
-                    onChange={handleChange}
-                    placeholder="https://example.com/avatar.jpg"
-                    className="input-field"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
+                {/* Bio */}
+                <div className="space-y-1.5">
+                  <label htmlFor="bio" className="text-sm font-medium">
                     Bio
                   </label>
                   <textarea
+                    id="bio"
                     name="bio"
                     value={form.bio}
                     onChange={handleChange}
                     placeholder="Tell us a little about yourself..."
                     rows={3}
-                    className="input-field resize-none"
+                    maxLength={180}
+                    className="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm placeholder:text-base-content/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition resize-none"
                   />
+                  <p className="text-xs text-base-content/40 text-right">
+                    {180 - form.bio.length} characters left
+                  </p>
                 </div>
               </div>
-            </div>
 
-            {/* Dog Information */}
-            <div className="bg-base-100 rounded-2xl shadow-lg p-6 md:p-8">
-              <h2 className="text-xl font-bold mb-6">Dog Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Dog's Name
-                  </label>
-                  <input
-                    name="dog_name"
-                    value={form.dog_name}
-                    onChange={handleChange}
-                    placeholder="Buddy"
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Dog's Breed
-                  </label>
-                  <input
-                    name="dog_breed"
-                    value={form.dog_breed}
-                    onChange={handleChange}
-                    placeholder="Golden Retriever"
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-base-content/70 mb-1.5">
-                    Years as Dog Owner
-                  </label>
-                  <input
-                    name="years_as_owner"
-                    type="number"
-                    min={0}
-                    value={form.years_as_owner}
-                    onChange={handleChange}
-                    placeholder="0"
-                    className="input-field"
-                  />
-                </div>
+              {/* Footer */}
+              <div className="border-t border-base-300 px-6 py-4 flex justify-end gap-3">
+                <button
+                  type="reset"
+                  onClick={() => setForm(initialForm)}
+                  className="h-9 px-4 rounded-lg border border-base-300 bg-base-100 text-sm font-medium text-base-content/70 shadow-sm shadow-black/5 hover:bg-base-200 transition"
+                >
+                  Cancel
+                </button>
+                <Button variant="primary" size="sm" type="submit" isLoading={saving}>
+                  Save changes
+                </Button>
               </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-4">
-              <Link to={dashboardPath}>
-                <Button variant="ghost" size="md">Cancel</Button>
-              </Link>
-              <Button variant="primary" size="md" type="submit" isLoading={saving}>
-                Save Changes
-              </Button>
-            </div>
-          </form>
+            </form>
+          </div>
         )}
-      </Container>
-    </main>
+      </div>
+    </DashboardLayout>
   );
 };
 

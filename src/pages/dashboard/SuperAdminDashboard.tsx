@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useSession, UserRole } from "../../context/SessionContext";
 import supabase from "../../supabase";
 import { Container } from "../../components/common/Container";
 import { Button } from "../../components/common/Button";
+import DashboardLayout from "../../components/layout/DashboardLayout";
 
 interface Profile {
   id: string;
@@ -15,7 +15,7 @@ interface Profile {
 const ROLES: UserRole[] = ["user", "admin", "super_admin"];
 
 const SuperAdminDashboard = () => {
-  const { session, role } = useSession();
+  const { session } = useSession();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,46 +69,12 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
-    <main className="min-h-screen bg-base-200">
-      <nav className="bg-base-100 shadow-sm border-b border-base-300">
-        <Container className="flex items-center justify-between py-4">
-          <Link to="/" className="text-xl font-bold gradient-text">
-            PawConnect AI
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link to="/settings/profile">
-              <Button variant="ghost" size="sm">Settings</Button>
-            </Link>
-            <span className="text-sm text-base-content/70">{session?.user.email}</span>
-            <span className="px-2 py-1 text-xs font-medium rounded-full bg-error/10 text-error capitalize">
-              {role?.replace("_", " ")}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              Sign Out
-            </Button>
-          </div>
-        </Container>
-      </nav>
-
+    <DashboardLayout>
       <Container className="py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Super Admin Dashboard</h1>
-            <p className="text-base-content/60">Full system control. Manage users, roles, and more.</p>
-          </div>
-          <div className="flex gap-3">
-            <Link to="/dashboard">
-              <Button variant="outline" size="sm">User Dashboard</Button>
-            </Link>
-            <Link to="/admin/dashboard">
-              <Button variant="outline" size="sm">Admin Dashboard</Button>
-            </Link>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Role & Access Control</h1>
+          <p className="text-base-content/60">Full system control. Manage users, roles, and more.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -197,7 +163,7 @@ const SuperAdminDashboard = () => {
           )}
         </div>
       </Container>
-    </main>
+    </DashboardLayout>
   );
 };
 

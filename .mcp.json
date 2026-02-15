@@ -3,6 +3,23 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=pidtqrbzmpgpckrqgtdv"
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ]
+    },
+    "netlify": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@netlify/mcp"
+      ],
+      "env": {
+        "NETLIFY_PERSONAL_ACCESS_TOKEN": "nfp_3JPo1KDgV5B3qTuRxAF2BRa5Au7fjrAj0e16"
+      }
     }
   }
 }
