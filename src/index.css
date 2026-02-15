@@ -115,3 +115,32 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Auth pages styles */
+.main-container {
+  @apply flex flex-col items-center justify-center min-h-screen gap-4 p-8;
+}
+
+.main-container input {
+  @apply w-full max-w-sm px-4 py-3 rounded-lg border border-neutral-300
+         focus:border-primary focus:ring-2 focus:ring-primary/20
+         transition-all duration-200 bg-base-100;
+}
+
+.main-container button[type="submit"] {
+  @apply w-full max-w-sm bg-gradient-to-r from-primary to-secondary text-white
+         font-semibold py-3 px-8 rounded-lg shadow-lg hover:shadow-xl
+         transform hover:scale-105 transition-all duration-300 cursor-pointer;
+}
+
+.header-text {
+  @apply text-3xl font-bold mb-4;
+}
+
+.home-link {
+  @apply fixed top-4 left-4 text-primary hover:underline;
+}
+
+.auth-link {
+  @apply text-primary hover:underline text-sm;
+}

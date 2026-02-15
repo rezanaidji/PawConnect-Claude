@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Container } from '../common/Container';
 import { Button } from '../common/Button';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import Aurora from '../backgrounds/Aurora';
 
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion();
@@ -31,10 +32,14 @@ export function HeroSection() {
 
   return (
     <section className="relative min-h-screen flex items-center pt-20 lg:pt-0 overflow-hidden bg-gradient-to-br from-base-100 via-base-100 to-primary/5">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary/10 rounded-full blur-3xl" />
+      {/* Aurora Background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <Aurora
+          colorStops={['#004D99', '#00CCFF', '#004D99']}
+          amplitude={1.2}
+          blend={0.6}
+          speed={0.5}
+        />
       </div>
 
       <Container className="relative z-10">

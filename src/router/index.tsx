@@ -3,12 +3,17 @@ import LandingPage from "../pages/LandingPage";
 import SignInPage from "../pages/auth/SignInPage.tsx";
 import SignUpPage from "../pages/auth/SignUpPage.tsx";
 import ProtectedPage from "../pages/ProtectedPage.tsx";
+import AIChatPage from "../pages/AIChatPage.tsx";
 import NotFoundPage from "../pages/404Page.tsx";
 import AuthProtectedRoute from "./AuthProtectedRoute.tsx";
+import RoleProtectedRoute from "./RoleProtectedRoute.tsx";
+import UserDashboard from "../pages/dashboard/UserDashboard.tsx";
+import AdminDashboard from "../pages/dashboard/AdminDashboard.tsx";
+import SuperAdminDashboard from "../pages/dashboard/SuperAdminDashboard.tsx";
+import ProfileSettingsPage from "../pages/settings/ProfileSettingsPage.tsx";
 import Providers from "../Providers.tsx";
 
 const router = createBrowserRouter([
-  // I recommend you reflect the routes here in the pages folder
   {
     path: "/",
     element: <Providers />,
@@ -26,6 +31,10 @@ const router = createBrowserRouter([
         path: "/auth/sign-up",
         element: <SignUpPage />,
       },
+      {
+        path: "/ai-chat",
+        element: <AIChatPage />,
+      },
       // Auth Protected routes
       {
         path: "/",
@@ -34,6 +43,48 @@ const router = createBrowserRouter([
           {
             path: "/protected",
             element: <ProtectedPage />,
+          },
+        ],
+      },
+      // Settings (all authenticated roles)
+      {
+        path: "/",
+        element: <RoleProtectedRoute allowedRoles={["user", "admin", "super_admin"]} />,
+        children: [
+          {
+            path: "/settings/profile",
+            element: <ProfileSettingsPage />,
+          },
+        ],
+      },
+      // Role-based dashboard routes
+      {
+        path: "/",
+        element: <RoleProtectedRoute allowedRoles={["user", "admin", "super_admin"]} />,
+        children: [
+          {
+            path: "/dashboard",
+            element: <UserDashboard />,
+          },
+        ],
+      },
+      {
+        path: "/",
+        element: <RoleProtectedRoute allowedRoles={["admin", "super_admin"]} />,
+        children: [
+          {
+            path: "/admin/dashboard",
+            element: <AdminDashboard />,
+          },
+        ],
+      },
+      {
+        path: "/",
+        element: <RoleProtectedRoute allowedRoles={["super_admin"]} />,
+        children: [
+          {
+            path: "/super-admin/dashboard",
+            element: <SuperAdminDashboard />,
           },
         ],
       },

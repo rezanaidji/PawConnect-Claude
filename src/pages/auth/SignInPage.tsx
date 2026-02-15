@@ -4,14 +4,17 @@ import { useSession } from "../../context/SessionContext";
 import supabase from "../../supabase";
 
 const SignInPage = () => {
-  // ==============================
-  // If user is already logged in, redirect to home
-  // This logic is being repeated in SignIn and SignUp..
-  const { session } = useSession();
-  if (session) return <Navigate to="/" />;
-  // maybe we can create a wrapper component for these pages
-  // just like the ./router/AuthProtectedRoute.tsx? up to you.
-  // ==============================
+  const { session, role } = useSession();
+
+  // Role-based redirect after login
+  if (session && role) {
+    if (role === "super_admin") return <Navigate to="/super-admin/dashboard" />;
+    if (role === "admin") return <Navigate to="/admin/dashboard" />;
+    return <Navigate to="/dashboard" />;
+  }
+  // Session exists but role not yet loaded — wait
+  if (session) return null;
+
   const [status, setStatus] = useState("");
   const [formValues, setFormValues] = useState({
     email: "",
@@ -25,15 +28,21 @@ const SignInPage = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStatus("Logging in...");
-    const { error } = await supabase.auth.signInWithPassword({
-      email: formValues.email,
-      password: formValues.password,
-    });
-    if (error) {
-      alert(error.message);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: formValues.email,
+        password: formValues.password,
+      });
+      if (error) {
+        alert(error.message);
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
+      alert("Une erreur est survenue");
     }
     setStatus("");
   };
+
   return (
     <main>
       <Link className="home-link" to="/">

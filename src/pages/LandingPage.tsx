@@ -8,6 +8,7 @@ import { SocialProofSection } from '../components/landing/SocialProofSection';
 import { PricingSection } from '../components/landing/PricingSection';
 import { FinalCTASection } from '../components/landing/FinalCTASection';
 import { Footer } from '../components/landing/Footer';
+import FloatingChatWidget from '../components/FloatingChatWidget';
 
 export default function LandingPage() {
   return (
@@ -24,6 +25,7 @@ export default function LandingPage() {
         <FinalCTASection />
       </main>
       <Footer />
+      <FloatingChatWidget />
     </div>
   );
 }

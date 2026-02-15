@@ -1,279 +1,245 @@
-<p align="center">
-<h1 align="center">React Supabase Auth with Protected Routes</h1>
-</p>
+# PawConnect AI
 
-<p align="center">
-<img src="remove_me.png" width="450">
-</p>
+A full-stack web application for dog owners, powered by AI. Built with React, Supabase, and Tailwind CSS.
 
-[**`App Demo`**](https://react-supabase-auth-template.vercel.app/)
-
-## Features
-
-- Protected Routes
-- Supabase Session Object in Global Context via `useSession`
-- User Authentication
-- Routing and Route Guards
-
-It's also blazingly fast. [Try it out for yourself.](https://react-supabase-auth-template.vercel.app/)
-
-[We also have a similar template for FIREBASE](https://github.com/mmvergara/react-firebase-auth-template)
+**Course:** CAI3303C — Natural Language Processing (Spring 2026)
 
 ---
 
-## Architecture Overview
+## Features
 
-### High-Level Architecture
+- **AI Chat** — Conversational AI assistant for dog-related questions
+- **Role-Based Access Control (RBAC)** — Three user roles: `user`, `admin`, `super_admin`
+- **Role-Based Dashboards** — Each role has its own dashboard with appropriate permissions
+- **Profile Settings** — Users can manage their personal info and dog details
+- **Row-Level Security (RLS)** — Database-level access control via Supabase policies
+- **Landing Page** — Marketing page with hero, features, pricing, ROI calculator, social proof
+- **Authentication** — Sign up, sign in, sign out with Supabase Auth
+- **Protected Routes** — Auth guards and role-based route guards
 
-```mermaid
-flowchart TB
-    subgraph Client["Browser Client"]
-        UI["React UI Layer"]
-        Router["React Router v7"]
-        Context["Session Context"]
-        SupaClient["Supabase Client"]
-    end
+---
 
-    subgraph Supabase["Supabase Backend"]
-        Auth["Auth Service"]
-        DB["PostgreSQL Database"]
-        Storage["Storage"]
-    end
+## Tech Stack
 
-    UI --> Router
-    Router --> Context
-    Context --> SupaClient
-    SupaClient <-->|"HTTPS/WebSocket"| Auth
-    Auth --> DB
+| Layer | Technology |
+|-------|------------|
+| UI Framework | React 19 |
+| Routing | React Router v7 |
+| State Management | React Context API |
+| Backend | Supabase (Auth, PostgreSQL, RLS) |
+| Build Tool | Vite 6 |
+| Language | TypeScript 5.7 |
+| Styling | Tailwind CSS 3 + DaisyUI 5 |
+| Animations | Framer Motion |
+| Icons | Heroicons, Lucide React |
 
-    style Client fill:#2a2a2a,stroke:#3ecf8e,color:#fff
-    style Supabase fill:#1c1c1c,stroke:#3ecf8e,color:#fff
+---
+
+## User Roles
+
+| Role | Dashboard | Capabilities |
+|------|-----------|-------------|
+| `user` | `/dashboard` | View own profile, AI Chat, profile settings |
+| `admin` | `/admin/dashboard` | Everything above + view all users |
+| `super_admin` | `/super-admin/dashboard` | Everything above + change roles, delete users |
+
+After sign-in, users are automatically redirected to their role-appropriate dashboard.
+
+---
+
+## Database Schema
+
+### `profiles` table
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID (PK) | References `auth.users.id` |
+| `email` | TEXT | From auth signup |
+| `role` | `user_role` enum | `user`, `admin`, `super_admin` |
+| `display_name` | TEXT | |
+| `bio` | TEXT | |
+| `avatar_url` | TEXT | |
+| `phone_number` | TEXT (NOT NULL) | Required field |
+| `location` | TEXT | City / region |
+| `dog_name` | TEXT | |
+| `dog_breed` | TEXT | |
+| `years_as_owner` | INTEGER | |
+| `created_at` | TIMESTAMPTZ | Auto-set |
+| `updated_at` | TIMESTAMPTZ | Auto-updated via trigger |
+
+A profile is **automatically created** when a new user signs up (via a database trigger on `auth.users`).
+
+### RLS Policies
+
+- **Users** can read and update their own profile (cannot change their role)
+- **Admins** can read all profiles
+- **Super Admins** have full CRUD access on all profiles
+- A `SECURITY DEFINER` function (`get_user_role`) is used to avoid infinite recursion in policies
+
+---
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── backgrounds/        # Aurora background effect
+│   ├── common/             # Button, Container, SectionWrapper
+│   ├── landing/            # Hero, Features, Pricing, Footer, Navbar, etc.
+│   ├── ui/                 # Dock, Magnet, ShinyText
+│   ├── FloatingChatWidget.tsx
+│   └── GlowingAIChat.tsx
+├── context/
+│   ├── SessionContext.tsx   # Auth session + role provider
+│   └── ThemeContext.tsx     # Theme provider
+├── hooks/
+│   └── useReducedMotion.ts
+├── lib/
+│   └── utils.ts            # cn() utility (clsx + tailwind-merge)
+├── pages/
+│   ├── auth/
+│   │   ├── SignInPage.tsx   # Role-based redirect after login
+│   │   └── SignUpPage.tsx
+│   ├── dashboard/
+│   │   ├── UserDashboard.tsx
+│   │   ├── AdminDashboard.tsx
+│   │   └── SuperAdminDashboard.tsx
+│   ├── settings/
+│   │   └── ProfileSettingsPage.tsx
+│   ├── 404Page.tsx
+│   ├── AIChatPage.tsx
+│   ├── HomePage.tsx
+│   ├── LandingPage.tsx
+│   ├── LoadingPage.tsx
+│   └── ProtectedPage.tsx
+├── router/
+│   ├── index.tsx            # All routes
+│   ├── AuthProtectedRoute.tsx
+│   └── RoleProtectedRoute.tsx
+├── supabase/
+│   └── index.ts             # Supabase client
+├── types/
+│   └── landing.ts
+├── utils/
+│   └── roiCalculator.ts
+├── config.ts
+├── main.tsx
+├── Providers.tsx
+└── index.css
 ```
 
-### Component Hierarchy
+---
 
-```mermaid
-flowchart TD
-    main["main.tsx<br/><i>Entry Point</i>"]
-    router["RouterProvider<br/><i>React Router</i>"]
-    providers["Providers.tsx<br/><i>SessionProvider Wrapper</i>"]
+## Routes
 
-    subgraph Public["Public Routes"]
-        home["HomePage<br/>/"]
-        signin["SignInPage<br/>/auth/sign-in"]
-        signup["SignUpPage<br/>/auth/sign-up"]
-    end
+| Path | Access | Page |
+|------|--------|------|
+| `/` | Public | Landing Page |
+| `/auth/sign-in` | Public | Sign In |
+| `/auth/sign-up` | Public | Sign Up |
+| `/ai-chat` | Public | AI Chat |
+| `/dashboard` | `user`, `admin`, `super_admin` | User Dashboard |
+| `/admin/dashboard` | `admin`, `super_admin` | Admin Dashboard |
+| `/super-admin/dashboard` | `super_admin` | Super Admin Dashboard |
+| `/settings/profile` | `user`, `admin`, `super_admin` | Profile Settings |
+| `/protected` | Authenticated | Protected Page |
 
-    subgraph Protected["Protected Routes"]
-        authRoute["AuthProtectedRoute<br/><i>Route Guard</i>"]
-        protectedPage["ProtectedPage<br/>/protected"]
-    end
+---
 
-    notfound["NotFoundPage<br/>/*"]
-    loading["LoadingPage<br/><i>Initial Load</i>"]
+## Architecture
 
-    main --> router
-    router --> providers
-    providers --> home
-    providers --> signin
-    providers --> signup
-    providers --> authRoute
-    authRoute -->|"session exists"| protectedPage
-    authRoute -->|"no session"| notfound
-    providers --> notfound
-    providers -.->|"isLoading"| loading
-
-    style main fill:#3ecf8e,stroke:#229f65,color:#000
-    style providers fill:#3ecf8e,stroke:#229f65,color:#000
-    style authRoute fill:#f59e0b,stroke:#d97706,color:#000
-    style Protected fill:#2a2a2a,stroke:#f59e0b,color:#fff
-    style Public fill:#2a2a2a,stroke:#3ecf8e,color:#fff
-```
-
-### Data Flow
-
-```mermaid
-flowchart LR
-    subgraph Components["React Components"]
-        HomePage
-        SignInPage
-        SignUpPage
-        ProtectedPage
-    end
-
-    subgraph Context["State Management"]
-        SessionProvider["SessionProvider<br/><i>Provides session state</i>"]
-        useSession["useSession()<br/><i>Custom Hook</i>"]
-    end
-
-    subgraph Supabase["Supabase Auth"]
-        signUp["signUp()"]
-        signIn["signInWithPassword()"]
-        signOut["signOut()"]
-        authListener["onAuthStateChange()"]
-    end
-
-    SignUpPage -->|"credentials"| signUp
-    SignInPage -->|"credentials"| signIn
-    HomePage -->|"logout"| signOut
-
-    signUp -->|"triggers"| authListener
-    signIn -->|"triggers"| authListener
-    signOut -->|"triggers"| authListener
-
-    authListener -->|"updates"| SessionProvider
-    SessionProvider -->|"provides"| useSession
-    useSession -->|"session data"| Components
-
-    style Context fill:#3ecf8e,stroke:#229f65,color:#000
-    style Supabase fill:#1c1c1c,stroke:#3ecf8e,color:#fff
-```
-
-### Authentication & Routing Integration
+### Authentication & Role Flow
 
 ```mermaid
 sequenceDiagram
     participant User
     participant App as React App
-    participant Router as React Router
     participant Context as SessionContext
     participant Supabase as Supabase Auth
+    participant DB as PostgreSQL
 
-    Note over App,Supabase: Initial Load
-    App->>Context: Mount SessionProvider
-    Context->>Supabase: Subscribe to onAuthStateChange
-    Supabase-->>Context: Return initial session (or null)
-    Context->>App: Set isLoading=false
-
-    Note over User,Supabase: Sign In Flow
-    User->>App: Navigate to /auth/sign-in
-    Router->>App: Render SignInPage
+    Note over App,DB: Sign Up
     User->>App: Submit credentials
-    App->>Supabase: signInWithPassword(email, password)
-    Supabase-->>Context: Emit auth state change
-    Context->>App: Update session state
-    App->>Router: Navigate to /
+    App->>Supabase: signUp(email, password)
+    Supabase->>DB: Insert into auth.users
+    DB->>DB: Trigger: auto-create profile (role=user)
 
-    Note over User,Supabase: Accessing Protected Route
-    User->>Router: Navigate to /protected
-    Router->>App: Render AuthProtectedRoute
-    App->>Context: Check useSession()
-    alt Has Session
-        Context-->>App: Return session
-        App->>Router: Render ProtectedPage
-    else No Session
-        Context-->>App: Return null
-        App->>Router: Render NotFoundPage
-    end
-
-    Note over User,Supabase: Sign Out Flow
-    User->>App: Click Sign Out
-    App->>Supabase: signOut()
-    Supabase-->>Context: Emit auth state change (null)
-    Context->>App: Clear session state
-    App->>Router: Re-render (session = null)
+    Note over App,DB: Sign In
+    User->>App: Submit credentials
+    App->>Supabase: signInWithPassword()
+    Supabase-->>Context: onAuthStateChange (session)
+    Context->>DB: SELECT role FROM profiles
+    Context->>App: Provide { session, role }
+    App->>App: Redirect to role-based dashboard
 ```
 
-### Project Structure
+### RBAC Data Flow
 
 ```mermaid
 flowchart TD
-    subgraph Root["Project Root"]
-        index["index.html"]
-        pkg["package.json"]
-        vite["vite.config.ts"]
-        env[".env.local"]
+    Session["SessionContext<br/>{session, role, isLoading}"]
+
+    subgraph Guards["Route Guards"]
+        Auth["AuthProtectedRoute<br/>Requires session"]
+        Role["RoleProtectedRoute<br/>Requires allowed role"]
     end
 
-    subgraph Src["src/"]
-        main["main.tsx"]
-        prov["Providers.tsx"]
-        config["config.ts"]
-        css["index.css"]
-
-        subgraph Pages["pages/"]
-            home["HomePage.tsx"]
-            protected["ProtectedPage.tsx"]
-            loading["LoadingPage.tsx"]
-            notfound["404Page.tsx"]
-
-            subgraph AuthPages["auth/"]
-                signIn["SignInPage.tsx"]
-                signUp["SignUpPage.tsx"]
-            end
-        end
-
-        subgraph ContextDir["context/"]
-            session["SessionContext.tsx"]
-        end
-
-        subgraph RouterDir["router/"]
-            routerIndex["index.tsx"]
-            authProtected["AuthProtectedRoute.tsx"]
-        end
-
-        subgraph SupaDir["supabase/"]
-            supaIndex["index.ts"]
-        end
+    subgraph Dashboards["Dashboards"]
+        UD["UserDashboard<br/>/dashboard"]
+        AD["AdminDashboard<br/>/admin/dashboard"]
+        SAD["SuperAdminDashboard<br/>/super-admin/dashboard"]
     end
 
-    main --> prov
-    main --> routerIndex
-    prov --> session
-    routerIndex --> authProtected
-    supaIndex --> config
+    subgraph Settings["Settings"]
+        PS["ProfileSettingsPage<br/>/settings/profile"]
+    end
 
-    style Root fill:#1c1c1c,stroke:#4a4a4a,color:#fff
-    style Src fill:#2a2a2a,stroke:#3ecf8e,color:#fff
-    style Pages fill:#3a3a3a,stroke:#3ecf8e,color:#fff
-    style ContextDir fill:#3a3a3a,stroke:#f59e0b,color:#fff
-    style RouterDir fill:#3a3a3a,stroke:#3b82f6,color:#fff
-    style SupaDir fill:#3a3a3a,stroke:#3ecf8e,color:#fff
+    Session --> Guards
+    Role -->|"user, admin, super_admin"| UD
+    Role -->|"admin, super_admin"| AD
+    Role -->|"super_admin"| SAD
+    Role -->|"all roles"| PS
+
+    style Session fill:#3ecf8e,stroke:#229f65,color:#000
+    style Guards fill:#2a2a2a,stroke:#f59e0b,color:#fff
+    style Dashboards fill:#2a2a2a,stroke:#3b82f6,color:#fff
+    style Settings fill:#2a2a2a,stroke:#8b5cf6,color:#fff
 ```
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| UI Framework | React 19 |
-| Routing | React Router v7.6 |
-| State Management | React Context API |
-| Backend | Supabase (Auth, PostgreSQL) |
-| Build Tool | Vite 6 |
-| Language | TypeScript 5.7 |
-| Styling | CSS |
 
 ---
 
 ## Getting Started
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Create `.env` using the `.env.example` as a template
-```
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-```
-4. Run the app: `npm run dev`
+1. **Clone** the repository
+2. **Install** dependencies:
+   ```bash
+   npm install
+   ```
+3. **Configure** environment variables — create `.env.local`:
+   ```
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+4. **Run** the development server:
+   ```bash
+   npm run dev
+   ```
+5. Open **http://localhost:5173**
 
-## What you need to know
+---
 
-- `/router/index.tsx` is where you declare your routes
-- `/context/SessionContext.tsx` is where you can find the `useSession` hook
-  - This hook gives you access to the `session` object from Supabase globally
-- `/Providers.tsx` is where you can add more `providers` or `wrappers`
+## Key Files
 
-## Other Supabase Templates
+| File | Purpose |
+|------|---------|
+| `src/context/SessionContext.tsx` | Provides `useSession()` hook with `{ session, role, isLoading }` |
+| `src/router/index.tsx` | All route definitions |
+| `src/router/RoleProtectedRoute.tsx` | Role-based route guard component |
+| `src/Providers.tsx` | Wraps app with SessionProvider and ThemeProvider |
+| `src/supabase/index.ts` | Supabase client instance |
 
-- [React ShadCN Supabase Auth Template](https://github.com/mmvergara/react-supabase-shadcn-auth-template)
-- [NextJs ShadCN Supabase Auth Template](https://github.com/mmvergara/nextjs-shadcn-supabase-auth-starter)
+---
 
-## More Starter Templates
+## License
 
-- [NextJs MongoDB Prisma Auth Template](https://github.com/mmvergara/nextjs-mongodb-prisma-auth-template)
-- [NextJs Discord Bot Template](https://github.com/mmvergara/nextjs-discord-bot-boilerplate)
-- [React Firebase Auth Template](https://github.com/mmvergara/react-firebase-auth-template)
-- [Golang Postgres Auth Template](https://github.com/mmvergara/golang-postgresql-auth-template)
-- [Vue Golang PostgresSql Auth Template](https://github.com/mmvergara/vue-golang-postgresql-auth-starter-template)
-- [Vue Supabase Auth Template](https://github.com/mmvergara/vue-supabase-auth-starter-template)
-- [Remix Drizzle Auth Template](https://github.com/mmvergara/remix-drizzle-auth-template)
+MIT
