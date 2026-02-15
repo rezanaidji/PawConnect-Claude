@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useSession } from "../../context/SessionContext";
 import supabase from "../../supabase";
 import { Container } from "../../components/common/Container";
 import DashboardLayout from "../../components/layout/DashboardLayout";
