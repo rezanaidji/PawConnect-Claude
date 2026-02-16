@@ -1,12 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Loader2, Bot, X, Mic, Paperclip } from "lucide-react";
+import { Send, Sparkles, Loader2, Bot, X } from "lucide-react";
 import { cn } from "../lib/utils";
-import {
-  sendChatMessage,
-  loadChatHistory,
-  uploadDocumentToKnowledgeBase,
-} from "../lib/chatService";
+import { sendPublicChatMessage } from "../lib/chatService";
 
 interface Message {
   text: string;
@@ -41,22 +37,19 @@ function TypingIndicator() {
   );
 }
 
+const WELCOME_MESSAGE: Message = {
+  text: "Hi! I'm the PawConnect AI assistant. Ask me anything about our features, pricing, or how our technology works!",
+  isUser: false,
+  timestamp: new Date(),
+};
+
 export default function FloatingChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
-      isUser: false,
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,41 +61,19 @@ export default function FloatingChatWidget() {
     }
   }, [isOpen]);
 
-  // Load chat history when widget opens for the first time
-  useEffect(() => {
-    if (!isOpen || historyLoaded) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const history = await loadChatHistory();
-        if (cancelled) return;
-        if (history.length === 0) { setHistoryLoaded(true); return; }
-        setMessages([
-          {
-            text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
-            isUser: false,
-            timestamp: new Date(0),
-          },
-          ...history.map((m) => ({
-            text: m.text,
-            isUser: m.isUser,
-            timestamp: m.timestamp,
-          })),
-        ]);
-        setHistoryLoaded(true);
-      } catch {
-        // User not logged in — skip history loading
-        setHistoryLoaded(true);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [isOpen, historyLoaded]);
+  const handleSend = async () => {
+    if (!input.trim() || isTyping) return;
 
-  const handleAIResponse = async (userMessage: string) => {
+    const userMessage = input.trim();
+    setMessages((prev) => [
+      ...prev,
+      { text: userMessage, isUser: true, timestamp: new Date() },
+    ]);
+    setInput("");
+
     setIsTyping(true);
     try {
-      const answer = await sendChatMessage(userMessage);
+      const answer = await sendPublicChatMessage(userMessage);
       setMessages((prev) => [
         ...prev,
         { text: answer, isUser: false, timestamp: new Date() },
@@ -117,50 +88,10 @@ export default function FloatingChatWidget() {
     }
   };
 
-  const handleSend = () => {
-    if (!input.trim() || isTyping) return;
-
-    const userMessage = input.trim();
-    setMessages((prev) => [
-      ...prev,
-      { text: userMessage, isUser: true, timestamp: new Date() },
-    ]);
-    setInput("");
-    handleAIResponse(userMessage);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleSend();
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-
-    setIsUploading(true);
-    setMessages((prev) => [
-      ...prev,
-      { text: `Uploading "${file.name}"...`, isUser: true, timestamp: new Date() },
-    ]);
-
-    try {
-      const text = await file.text();
-      await uploadDocumentToKnowledgeBase(file.name, text);
-      setMessages((prev) => [
-        ...prev,
-        { text: `"${file.name}" added to knowledge base! Ask me about it.`, isUser: false, timestamp: new Date() },
-      ]);
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { text: `Upload failed: ${err.message}`, isUser: false, timestamp: new Date() },
-      ]);
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -196,7 +127,7 @@ export default function FloatingChatWidget() {
                   <Bot className="w-5 h-5 text-violet-400" />
                 </motion.div>
                 <div>
-                  <h3 className="text-sm font-semibold text-white">AI Chat Assistant</h3>
+                  <h3 className="text-sm font-semibold text-white">PawConnect Assistant</h3>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-xs text-white/50">Online</span>
@@ -230,7 +161,7 @@ export default function FloatingChatWidget() {
                           : "bg-white/5 text-white border border-white/10"
                       )}
                     >
-                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -251,37 +182,14 @@ export default function FloatingChatWidget() {
 
             {/* Input */}
             <div className="border-t border-white/10 p-3 bg-black/20">
-              <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.csv,.json"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <div className="flex items-center gap-2">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors disabled:opacity-50"
-                >
-                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors"
-                >
-                  <Mic className="w-3.5 h-3.5" />
-                </motion.button>
+              <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type your message..."
+                  placeholder="Ask about features, pricing..."
                   className="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 focus:shadow-lg focus:shadow-violet-500/10 transition-all"
                 />
                 <motion.button

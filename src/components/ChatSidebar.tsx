@@ -4,29 +4,60 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus,
   MessageSquare,
+  FileText,
   LayoutDashboard,
   ChevronUp,
   LogOut,
   PanelLeftClose,
   PanelLeft,
+  Trash2,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useSession } from "../context/SessionContext";
 import supabase from "../supabase";
+import type { Conversation, Document } from "../lib/chatService";
+
+function timeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
 
 interface ChatSidebarProps {
-  messageCount: number;
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  onSelectConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => void;
   onNewChat: () => void;
+  documents: Document[];
+  onDeleteDocument: (id: string) => void;
   className?: string;
 }
 
-function ChatSidebar({ messageCount, onNewChat, className }: ChatSidebarProps) {
+function ChatSidebar({
+  conversations,
+  activeConversationId,
+  onSelectConversation,
+  onDeleteConversation,
+  onNewChat,
+  documents,
+  onDeleteDocument,
+  className,
+}: ChatSidebarProps) {
   const navigate = useNavigate();
   const { session, role } = useSession();
   const [avatarUrl, setAvatarUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"chats" | "documents">("chats");
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -99,34 +130,121 @@ function ChatSidebar({ messageCount, onNewChat, className }: ChatSidebarProps) {
         </div>
       </div>
 
-      {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
-        <motion.button
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          className={cn(
-            "w-full flex items-center gap-3 rounded-xl bg-white/[0.06] border border-white/10 text-white/80 hover:bg-white/[0.1] hover:text-white transition-all",
-            collapsed ? "p-2.5 justify-center" : "px-3.5 py-3"
-          )}
-          title={collapsed ? "Your chat" : undefined}
-        >
-          <div className="relative flex-shrink-0">
-            <MessageSquare size={18} className="text-violet-400" />
-            {messageCount > 0 && !collapsed && (
-              <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-violet-500 rounded-full" />
+      {/* Tabs (hidden when collapsed) */}
+      {!collapsed && (
+        <div className="px-3 flex gap-1 bg-white/[0.02] border-b border-white/10">
+          <button
+            onClick={() => setActiveTab("chats")}
+            className={cn(
+              "flex-1 py-2 text-xs font-medium text-center transition-colors border-b-2",
+              activeTab === "chats"
+                ? "border-violet-500 text-white"
+                : "border-transparent text-white/40 hover:text-white/60"
             )}
-          </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium truncate">Your chat</p>
-              <p className="text-xs text-white/40 truncate">
-                {messageCount > 0
-                  ? `${messageCount} message${messageCount !== 1 ? "s" : ""}`
-                  : "Full history"}
-              </p>
-            </div>
-          )}
-        </motion.button>
+          >
+            Chats
+          </button>
+          <button
+            onClick={() => setActiveTab("documents")}
+            className={cn(
+              "flex-1 py-2 text-xs font-medium text-center transition-colors border-b-2",
+              activeTab === "documents"
+                ? "border-violet-500 text-white"
+                : "border-transparent text-white/40 hover:text-white/60"
+            )}
+          >
+            Documents
+          </button>
+        </div>
+      )}
+
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+        {(collapsed || activeTab === "chats") && (
+          <>
+            {conversations.map((conv) => (
+              <motion.button
+                key={conv.id}
+                onClick={() => onSelectConversation(conv.id)}
+                onMouseEnter={() => setHoveredId(conv.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                className={cn(
+                  "w-full flex items-center gap-3 rounded-xl border text-white/80 hover:text-white transition-all group",
+                  collapsed ? "p-2.5 justify-center" : "px-3.5 py-3",
+                  conv.id === activeConversationId
+                    ? "bg-white/[0.1] border-violet-500/30"
+                    : "bg-white/[0.03] border-white/5 hover:bg-white/[0.07]"
+                )}
+                title={collapsed ? conv.title : undefined}
+              >
+                <div className="relative flex-shrink-0">
+                  <MessageSquare size={18} className={conv.id === activeConversationId ? "text-violet-400" : "text-white/40"} />
+                </div>
+                {!collapsed && (
+                  <>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-medium truncate">{conv.title}</p>
+                      <p className="text-xs text-white/40 truncate">{timeAgo(conv.updated_at)}</p>
+                    </div>
+                    {hoveredId === conv.id && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteConversation(conv.id);
+                        }}
+                        className="p-1 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </motion.button>
+                    )}
+                  </>
+                )}
+              </motion.button>
+            ))}
+
+            {conversations.length === 0 && !collapsed && (
+              <p className="text-xs text-white/30 text-center py-4">No conversations yet</p>
+            )}
+          </>
+        )}
+
+        {!collapsed && activeTab === "documents" && (
+          <>
+            {documents.map((doc) => (
+              <motion.div
+                key={doc.id}
+                onMouseEnter={() => setHoveredId(doc.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                whileHover={{ scale: 1.01 }}
+                className="w-full flex items-center gap-3 rounded-xl border px-3.5 py-3 text-white/80 bg-white/[0.03] border-white/5 hover:bg-white/[0.07] transition-all"
+              >
+                <FileText size={18} className="text-indigo-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-medium truncate">{doc.title}</p>
+                  <p className="text-xs text-white/40 truncate">{timeAgo(doc.created_at)}</p>
+                </div>
+                {hoveredId === doc.id && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={() => onDeleteDocument(doc.id)}
+                    className="p-1 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </motion.button>
+                )}
+              </motion.div>
+            ))}
+
+            {documents.length === 0 && (
+              <p className="text-xs text-white/30 text-center py-4">No documents yet</p>
+            )}
+          </>
+        )}
       </div>
 
       {/* Bottom: Profile block */}

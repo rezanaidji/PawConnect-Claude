@@ -1,16 +1,22 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Loader2, Bot, Mic, Paperclip } from "lucide-react";
 import { cn } from "../lib/utils";
 import {
   sendChatMessage,
-  loadChatHistory,
+  listConversations,
+  loadConversationMessages,
+  createConversation,
+  deleteConversation,
   uploadDocumentToKnowledgeBase,
-  clearChatHistory,
+  listDocuments,
+  deleteDocument,
 } from "../lib/chatService";
+import type { Conversation, Document } from "../lib/chatService";
 import ChatSidebar from "./ChatSidebar";
+import { extractTextFromFile } from "../lib/fileParser";
 
 interface Message {
   text: string;
@@ -61,7 +67,9 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
   const [isTyping, setIsTyping] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [messageCount, setMessageCount] = useState(0);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,13 +82,40 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // Load chat history on mount
+  // Load conversations and documents on mount
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const history = await loadChatHistory();
-        if (cancelled || history.length === 0) return;
+        const [convs, docs] = await Promise.all([
+          listConversations(),
+          listDocuments(),
+        ]);
+        if (cancelled) return;
+        setConversations(convs);
+        setDocuments(docs);
+        if (convs.length > 0) {
+          setActiveConversationId(convs[0].id);
+        }
+      } catch {
+        // User not logged in
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load messages when active conversation changes
+  const loadMessages = useCallback(async (conversationId: string | null) => {
+    if (!conversationId) {
+      setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
+      return;
+    }
+    try {
+      const history = await loadConversationMessages(conversationId);
+      if (history.length === 0) {
+        setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
+      } else {
         setMessages([
           { ...WELCOME_MESSAGE, timestamp: new Date(0) },
           ...history.map((m) => ({
@@ -89,24 +124,32 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
             timestamp: m.timestamp,
           })),
         ]);
-        setMessageCount(history.length);
-      } catch {
-        // User not logged in — skip history loading
       }
-    };
-    load();
-    return () => { cancelled = true; };
+    } catch {
+      setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
+    }
   }, []);
 
-  const handleAIResponse = async (userMessage: string) => {
+  useEffect(() => {
+    loadMessages(activeConversationId);
+  }, [activeConversationId, loadMessages]);
+
+  const handleAIResponse = async (userMessage: string, conversationId: string) => {
     setIsTyping(true);
     try {
-      const answer = await sendChatMessage(userMessage);
+      const answer = await sendChatMessage(userMessage, conversationId);
       setMessages((prev) => [
         ...prev,
         { text: answer, isUser: false, timestamp: new Date() },
       ]);
-      setMessageCount((c) => c + 2); // user + ai
+      // Update conversation's updated_at in local state
+      setConversations((prev) =>
+        prev
+          .map((c) =>
+            c.id === conversationId ? { ...c, updated_at: new Date().toISOString() } : c
+          )
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      );
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -117,7 +160,7 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() || isTyping) return;
 
     const userMessage = input.trim();
@@ -131,21 +174,67 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
       textareaRef.current.style.height = "auto";
     }
 
-    handleAIResponse(userMessage);
+    let convId = activeConversationId;
+
+    // If no active conversation, create one with title from the message
+    if (!convId) {
+      try {
+        const title = userMessage.length > 40 ? userMessage.slice(0, 40) + "..." : userMessage;
+        const conv = await createConversation(title);
+        convId = conv.id;
+        setActiveConversationId(conv.id);
+        setConversations((prev) => [conv, ...prev]);
+      } catch (err: any) {
+        setMessages((prev) => [
+          ...prev,
+          { text: `Error: ${err.message || "Could not create conversation."}`, isUser: false, timestamp: new Date() },
+        ]);
+        return;
+      }
+    }
+
+    handleAIResponse(userMessage, convId);
   };
 
-  const handleNewChat = async () => {
-    try {
-      await clearChatHistory();
-    } catch {
-      // ignore errors — still clear locally
-    }
+  const handleNewChat = () => {
+    setActiveConversationId(null);
     setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
-    setMessageCount(0);
     setInput("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.focus();
+    }
+  };
+
+  const handleSelectConversation = (id: string) => {
+    if (id === activeConversationId) return;
+    setActiveConversationId(id);
+  };
+
+  const handleDeleteConversation = async (id: string) => {
+    try {
+      await deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (activeConversationId === id) {
+        const remaining = conversations.filter((c) => c.id !== id);
+        if (remaining.length > 0) {
+          setActiveConversationId(remaining[0].id);
+        } else {
+          setActiveConversationId(null);
+          setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    try {
+      await deleteDocument(id);
+      setDocuments((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      // ignore
     }
   };
 
@@ -161,12 +250,14 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
     ]);
 
     try {
-      const text = await file.text();
+      const text = await extractTextFromFile(file);
       await uploadDocumentToKnowledgeBase(file.name, text);
       setMessages((prev) => [
         ...prev,
         { text: `"${file.name}" has been added to the knowledge base. You can now ask questions about it!`, isUser: false, timestamp: new Date() },
       ]);
+      // Refresh document list
+      listDocuments().then(setDocuments).catch(() => {});
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -243,8 +334,13 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
 
       {/* Sidebar */}
       <ChatSidebar
-        messageCount={messageCount}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
         onNewChat={handleNewChat}
+        documents={documents}
+        onDeleteDocument={handleDeleteDocument}
       />
 
       {/* Main Chat Area */}
@@ -335,7 +431,7 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.csv,.json"
+              accept=".txt,.md,.csv,.json,.pdf,.docx"
               onChange={handleFileUpload}
               className="hidden"
             />

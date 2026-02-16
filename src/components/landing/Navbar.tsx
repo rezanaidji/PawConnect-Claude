@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bars3Icon, XMarkIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
-import { Bot } from 'lucide-react';
 import { Button } from '../common/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
@@ -15,7 +14,6 @@ const navLinks = [
   { label: 'The Tech', href: '#features', sectionId: 'features' },
   { label: 'Community', href: '#social-proof', sectionId: 'social-proof' },
   { label: 'Pricing', href: '#pricing', sectionId: 'pricing' },
-  { label: 'AI Chat', href: '/ai-chat', isRoute: true },
 ];
 
 export function Navbar() {
@@ -37,8 +35,7 @@ export function Navbar() {
 
       // Track active section
       const sections = navLinks
-        .filter((l) => !l.isRoute && l.sectionId)
-        .map((l) => l.sectionId!);
+        .map((l) => l.sectionId);
 
       let current = '';
       for (const id of sections) {
@@ -107,17 +104,7 @@ export function Navbar() {
 
             {/* Desktop Navigation */}
             <div ref={navRef} className="hidden lg:flex items-center gap-1">
-              {navLinks.map((link) =>
-                link.isRoute ? (
-                  <Link
-                    key={link.label}
-                    to={link.href}
-                    className="relative flex items-center gap-1.5 text-base-content hover:text-primary transition-colors font-semibold px-4 py-2 rounded-lg hover:bg-base-200/50"
-                  >
-                    <Bot className="w-4 h-4" />
-                    {link.label}
-                  </Link>
-                ) : (
+              {navLinks.map((link) => (
                   <a
                     key={link.label}
                     href={link.href}
@@ -132,7 +119,6 @@ export function Navbar() {
                     }`}
                   >
                     {link.label}
-                    {/* Active indicator */}
                     {activeSection === link.sectionId && (
                       <motion.div
                         layoutId="activeNav"
@@ -141,8 +127,7 @@ export function Navbar() {
                       />
                     )}
                   </a>
-                )
-              )}
+              ))}
             </div>
 
             {/* Desktop CTAs */}
@@ -221,18 +206,7 @@ export function Navbar() {
               transition={{ duration: 0.2 }}
             >
               <div className="px-6 py-4 flex flex-col gap-1">
-                {navLinks.map((link) =>
-                  link.isRoute ? (
-                    <Link
-                      key={link.label}
-                      to={link.href}
-                      className="flex items-center gap-1.5 text-base-content hover:text-primary transition-colors font-semibold py-2 px-3 rounded-lg hover:bg-base-200/50"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <Bot className="w-4 h-4" />
-                      {link.label}
-                    </Link>
-                  ) : (
+                {navLinks.map((link) => (
                     <a
                       key={link.label}
                       href={link.href}
@@ -248,8 +222,7 @@ export function Navbar() {
                     >
                       {link.label}
                     </a>
-                  )
-                )}
+                ))}
                 <hr className="border-base-200 my-2" />
                 {session ? (
                   <button
