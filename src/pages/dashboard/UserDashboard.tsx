@@ -6,6 +6,7 @@ import { Container } from "../../components/common/Container";
 import { Button } from "../../components/common/Button";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import { PawPrint, MapPin, Phone, Mail, Calendar, Pencil } from "lucide-react";
+import ChromaGrid from "../../components/ui/ChromaGrid";
 
 interface Profile {
   display_name: string;
@@ -179,65 +180,30 @@ const UserDashboard = () => {
                   </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {dogs.map((dog) => (
-                    <div
-                      key={dog.id}
-                      className="bg-base-100 rounded-xl border border-base-300 shadow-lg shadow-black/5 overflow-hidden"
-                    >
-                      {/* Dog banner */}
-                      <div
-                        className="h-20"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(251,146,60,0.7) 0%, rgba(244,114,182,0.7) 50%, rgba(168,85,247,0.6) 100%)",
-                        }}
-                      />
-
-                      {/* Dog photo + info */}
-                      <div className="px-5 pb-5">
-                        <div className="flex items-end gap-3 -mt-8">
-                          <div className="relative inline-flex size-16 items-center justify-center overflow-hidden rounded-full border-4 border-base-100 bg-base-200 shadow-sm shadow-black/10 flex-shrink-0">
-                            {dog.photo_url ? (
-                              <img
-                                src={dog.photo_url}
-                                className="h-full w-full object-cover"
-                                alt={dog.name}
-                              />
-                            ) : (
-                              <PawPrint size={22} className="text-base-content/40" />
-                            )}
-                          </div>
-                          <div className="min-w-0 pb-0.5">
-                            <h3 className="text-base font-semibold truncate">{dog.name}</h3>
-                            {dog.breed && (
-                              <p className="text-xs text-base-content/50 truncate">{dog.breed}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Dog details */}
-                        <div className="mt-3 space-y-1.5">
-                          <div className="flex items-center gap-4 text-sm text-base-content/60">
-                            <span className="font-medium text-base-content/80">Age:</span>
-                            <span>{dog.age} {dog.age === 1 ? "year" : "years"} old</span>
-                          </div>
-                          {dog.breed && (
-                            <div className="flex items-center gap-4 text-sm text-base-content/60">
-                              <span className="font-medium text-base-content/80">Breed:</span>
-                              <span>{dog.breed}</span>
-                            </div>
-                          )}
-                          {dog.notes && (
-                            <div className="text-sm text-base-content/60 mt-2 bg-base-200/50 rounded-lg px-3 py-2">
-                              <p className="italic">"{dog.notes}"</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ChromaGrid
+                  items={dogs.map((dog, i) => {
+                    const gradients = [
+                      { border: "#F59E0B", gradient: "linear-gradient(145deg, #F59E0B, #000)" },
+                      { border: "#EF4444", gradient: "linear-gradient(210deg, #EF4444, #000)" },
+                      { border: "#8B5CF6", gradient: "linear-gradient(165deg, #8B5CF6, #000)" },
+                      { border: "#10B981", gradient: "linear-gradient(195deg, #10B981, #000)" },
+                      { border: "#06B6D4", gradient: "linear-gradient(225deg, #06B6D4, #000)" },
+                      { border: "#EC4899", gradient: "linear-gradient(135deg, #EC4899, #000)" },
+                    ];
+                    const style = gradients[i % gradients.length];
+                    return {
+                      image: dog.photo_url || "",
+                      title: dog.name,
+                      subtitle: dog.breed || "Unknown breed",
+                      handle: `${dog.age} ${dog.age === 1 ? "year" : "years"} old`,
+                      notes: dog.notes || undefined,
+                      borderColor: style.border,
+                      gradient: style.gradient,
+                    };
+                  })}
+                  columns={dogs.length <= 2 ? dogs.length : 3}
+                  radius={250}
+                />
               )}
             </div>
 

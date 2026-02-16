@@ -8,6 +8,13 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
 async function getAuthInfo(): Promise<{ token: string; userId: string }> {
   // getUser() forces a server call and refreshes the token if expired
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -65,6 +72,44 @@ export async function loadChatHistory(): Promise<ChatMessage[]> {
     isUser: msg.role === "user",
     timestamp: new Date(msg.created_at),
   }));
+}
+
+export async function clearChatHistory(): Promise<void> {
+  const { userId } = await getAuthInfo();
+
+  const { error } = await supabase
+    .from("chat_history")
+    .delete()
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error("Failed to clear chat history.");
+  }
+}
+
+export async function getChatStats(): Promise<{ messageCount: number; lastActivity: string | null }> {
+  const { userId } = await getAuthInfo();
+
+  const { data, error } = await supabase
+    .from("chat_history")
+    .select("created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    return { messageCount: 0, lastActivity: null };
+  }
+
+  const { count } = await supabase
+    .from("chat_history")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  return {
+    messageCount: count || 0,
+    lastActivity: data?.[0]?.created_at || null,
+  };
 }
 
 export async function uploadDocumentToKnowledgeBase(

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import supabase from "../../supabase";
 import { Container } from "../../components/common/Container";
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import UserDataTable from "../../components/ui/UserDataTable";
 
 interface Profile {
   id: string;
@@ -60,49 +61,13 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="bg-base-100 rounded-2xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-base-300">
-            <h2 className="text-xl font-bold">All Users</h2>
+        {loading ? (
+          <div className="p-8 text-center">
+            <span className="loading loading-spinner loading-md" />
           </div>
-          {loading ? (
-            <div className="p-8 text-center">
-              <span className="loading loading-spinner loading-md" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-base-200/50">
-                  <tr>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-base-content/60">Email</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-base-content/60">Role</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-base-content/60">Joined</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-base-200">
-                  {profiles.map((profile) => (
-                    <tr key={profile.id} className="hover:bg-base-200/30 transition-colors">
-                      <td className="px-6 py-4 text-sm">{profile.email}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${
-                          profile.role === "super_admin"
-                            ? "bg-error/10 text-error"
-                            : profile.role === "admin"
-                            ? "bg-warning/10 text-warning"
-                            : "bg-primary/10 text-primary"
-                        }`}>
-                          {profile.role.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-base-content/60">
-                        {new Date(profile.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        ) : (
+          <UserDataTable profiles={profiles} />
+        )}
       </Container>
     </DashboardLayout>
   );

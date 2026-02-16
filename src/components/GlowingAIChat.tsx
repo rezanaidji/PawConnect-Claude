@@ -8,7 +8,9 @@ import {
   sendChatMessage,
   loadChatHistory,
   uploadDocumentToKnowledgeBase,
+  clearChatHistory,
 } from "../lib/chatService";
+import ChatSidebar from "./ChatSidebar";
 
 interface Message {
   text: string;
@@ -47,18 +49,19 @@ function TypingIndicator() {
   );
 }
 
+const WELCOME_MESSAGE: Message = {
+  text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
+  isUser: false,
+  timestamp: new Date(),
+};
+
 function GlowingAIChat({ className }: GlowingAIChatProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
-      isUser: false,
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [messageCount, setMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,17 +82,14 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
         const history = await loadChatHistory();
         if (cancelled || history.length === 0) return;
         setMessages([
-          {
-            text: "\u{1F44B} Hello! I'm your AI assistant. How can I help you today?",
-            isUser: false,
-            timestamp: new Date(0),
-          },
+          { ...WELCOME_MESSAGE, timestamp: new Date(0) },
           ...history.map((m) => ({
             text: m.text,
             isUser: m.isUser,
             timestamp: m.timestamp,
           })),
         ]);
+        setMessageCount(history.length);
       } catch {
         // User not logged in — skip history loading
       }
@@ -106,6 +106,7 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
         ...prev,
         { text: answer, isUser: false, timestamp: new Date() },
       ]);
+      setMessageCount((c) => c + 2); // user + ai
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -131,6 +132,21 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
     }
 
     handleAIResponse(userMessage);
+  };
+
+  const handleNewChat = async () => {
+    try {
+      await clearChatHistory();
+    } catch {
+      // ignore errors — still clear locally
+    }
+    setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
+    setMessageCount(0);
+    setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,12 +195,12 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
   return (
     <div
       className={cn(
-        "min-h-screen w-full flex items-center justify-center p-6 relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900",
+        "h-screen w-full flex relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900",
         className
       )}
     >
       {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-500/20 rounded-full mix-blend-normal blur-[128px]"
           animate={{
@@ -225,197 +241,171 @@ function GlowingAIChat({ className }: GlowingAIChatProps) {
         />
       </div>
 
-      {/* Main Chat Container */}
-      <motion.div
-        className="relative w-full max-w-3xl"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
+      {/* Sidebar */}
+      <ChatSidebar
+        messageCount={messageCount}
+        onNewChat={handleNewChat}
+      />
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
         <motion.div
-          className="text-center mb-8"
+          className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-white/[0.02] backdrop-blur-xl"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <div className="inline-flex items-center gap-3 mb-4">
-            <motion.div
-              className="p-3 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-white/10"
-              animate={{
-                boxShadow: [
-                  "0 0 20px rgba(139, 92, 246, 0.3)",
-                  "0 0 40px rgba(139, 92, 246, 0.5)",
-                  "0 0 20px rgba(139, 92, 246, 0.3)",
-                ],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <Bot className="w-8 h-8 text-violet-400" />
-            </motion.div>
-          </div>
-          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-violet-200 to-indigo-200 mb-2">
-            AI Chat Assistant
-          </h1>
-          <p className="text-white/50 text-sm">
-            Powered by advanced AI technology
-          </p>
-        </motion.div>
-
-        {/* Chat Box */}
-        <motion.div
-          className="relative backdrop-blur-2xl bg-white/[0.02] rounded-3xl border border-white/10 shadow-2xl overflow-hidden"
-          initial={{ scale: 0.95 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          {/* Glowing Border Effect */}
           <motion.div
-            className="absolute inset-0 rounded-3xl pointer-events-none"
-            style={{
-              background:
-                "linear-gradient(90deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))",
-              backgroundSize: "200% 100%",
-            }}
+            className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-white/10"
             animate={{
-              backgroundPosition: ["0% 0%", "200% 0%"],
+              boxShadow: [
+                "0 0 15px rgba(139, 92, 246, 0.3)",
+                "0 0 30px rgba(139, 92, 246, 0.5)",
+                "0 0 15px rgba(139, 92, 246, 0.3)",
+              ],
             }}
             transition={{
-              duration: 3,
+              duration: 2,
               repeat: Infinity,
-              ease: "linear",
+              ease: "easeInOut",
             }}
-          />
-
-          {/* Messages Area */}
-          <div className="relative h-[500px] overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
-            <AnimatePresence mode="popLayout">
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                  className={cn(
-                    "flex",
-                    msg.isUser ? "justify-end" : "justify-start"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[80%] px-4 py-3 rounded-2xl backdrop-blur-md",
-                      msg.isUser
-                        ? "bg-gradient-to-br from-violet-600/80 to-indigo-600/80 text-white border border-violet-400/30 shadow-lg shadow-violet-500/20"
-                        : "bg-white/5 text-white border border-white/10"
-                    )}
-                  >
-                    <p className="text-sm leading-relaxed">{msg.text}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {isTyping && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="flex justify-start"
-              >
-                <TypingIndicator />
-              </motion.div>
-            )}
-
-            <div ref={messagesEndRef} />
+          >
+            <Bot className="w-6 h-6 text-violet-400" />
+          </motion.div>
+          <div>
+            <h1 className="text-lg font-semibold text-white">
+              AI Chat Assistant
+            </h1>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs text-white/50">
+                Powered by advanced AI technology
+              </span>
+            </div>
           </div>
+        </motion.div>
 
-          {/* Input Area */}
-          <div className="relative border-t border-white/10 p-4 bg-black/20 backdrop-blur-xl">
-            <div className="flex items-end gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".txt,.md,.csv,.json"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <div className="flex gap-2">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors disabled:opacity-50"
-                >
-                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors"
-                >
-                  <Mic className="w-4 h-4" />
-                </motion.button>
-              </div>
-
-              <div className="flex-1 relative">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
-                  placeholder="Type your message..."
-                  rows={1}
-                  className={cn(
-                    "w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder:text-white/30 resize-none focus:outline-none transition-all",
-                    isFocused
-                      ? "border-violet-500/50 shadow-lg shadow-violet-500/20"
-                      : "border-white/10"
-                  )}
-                  style={{ maxHeight: "120px" }}
-                />
-              </div>
-
-              <motion.button
-                onClick={handleSend}
-                disabled={!input.trim() || isTyping}
-                whileHover={{ scale: input.trim() ? 1.05 : 1 }}
-                whileTap={{ scale: input.trim() ? 0.95 : 1 }}
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
+          <AnimatePresence mode="popLayout">
+            {messages.map((msg, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
                 className={cn(
-                  "p-3 rounded-xl transition-all",
-                  input.trim() && !isTyping
-                    ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50"
-                    : "bg-white/5 text-white/30 cursor-not-allowed"
+                  "flex",
+                  msg.isUser ? "justify-end" : "justify-start"
                 )}
               >
-                {isTyping ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
+                <div
+                  className={cn(
+                    "max-w-[80%] px-4 py-3 rounded-2xl backdrop-blur-md",
+                    msg.isUser
+                      ? "bg-gradient-to-br from-violet-600/80 to-indigo-600/80 text-white border border-violet-400/30 shadow-lg shadow-violet-500/20"
+                      : "bg-white/5 text-white border border-white/10"
+                  )}
+                >
+                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {isTyping && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex justify-start"
+            >
+              <TypingIndicator />
+            </motion.div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t border-white/10 p-4 bg-black/20 backdrop-blur-xl">
+          <div className="flex items-end gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.csv,.json"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <div className="flex gap-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors disabled:opacity-50"
+              >
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white transition-colors"
+              >
+                <Mic className="w-4 h-4" />
               </motion.button>
             </div>
 
-            <div className="flex items-center justify-between mt-3 text-xs text-white/40">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3 h-3" />
-                <span>Press Enter to send, Shift + Enter for new line</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                <span>Online</span>
-              </div>
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder="Type your message..."
+                rows={1}
+                className={cn(
+                  "w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder:text-white/30 resize-none focus:outline-none transition-all",
+                  isFocused
+                    ? "border-violet-500/50 shadow-lg shadow-violet-500/20"
+                    : "border-white/10"
+                )}
+                style={{ maxHeight: "120px" }}
+              />
+            </div>
+
+            <motion.button
+              onClick={handleSend}
+              disabled={!input.trim() || isTyping}
+              whileHover={{ scale: input.trim() ? 1.05 : 1 }}
+              whileTap={{ scale: input.trim() ? 0.95 : 1 }}
+              className={cn(
+                "p-3 rounded-xl transition-all",
+                input.trim() && !isTyping
+                  ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50"
+                  : "bg-white/5 text-white/30 cursor-not-allowed"
+              )}
+            >
+              {isTyping ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </motion.button>
+          </div>
+
+          <div className="flex items-center justify-between mt-3 text-xs text-white/40">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3 h-3" />
+              <span>Press Enter to send, Shift + Enter for new line</span>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </div>
   );
 }
