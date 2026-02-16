@@ -41,6 +41,6 @@
     "eslint-plugin-react-refresh": "^0.4.18",
     "shadcn": "^3.8.4",
     "typescript": "^5.7.3",
-    "vite": "^6.2.6"
+    "vite": "^7.3.1"
   }
 }
